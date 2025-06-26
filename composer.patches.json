@@ -8,6 +8,6 @@
         },
       "drupal/themable_forms": {
             "D11 Fix (Only version Constraint)" : "https://www.drupal.org/files/issues/2024-03-25/themable_forms.8.x-1.0.rector.patch"
-      },
+      }
     }
 }
