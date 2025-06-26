@@ -1,0 +1,13 @@
+{
+    "patches": {
+        "drupal/image_widget_crop": {
+            "Crop widget not adjusting crop box when crop is applied": "https://www.drupal.org/files/issues/2021-06-09/crop_widget_not_adjusting_to_existing_crop-3214365-9.patch"
+        },
+        "drupal/video_embed_field" : {
+            "Youtube no-cockie URL" : "https://raw.githubusercontent.com/szeberli/ct_composer-patches/main/video_embed_field-youtube-nocookie_v1.patch"
+        },
+      "drupal/themable_forms": {
+            "D11 Fix (Only version Constraint)" : "https://www.drupal.org/files/issues/2024-03-25/themable_forms.8.x-1.0.rector.patch"
+      },
+    }
+}
