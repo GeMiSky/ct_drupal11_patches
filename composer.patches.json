@@ -5,6 +5,9 @@
 		},
 		"drupal/themable_forms": {
 			"D11 Fix (Only version Constraint)": "https://www.drupal.org/files/issues/2024-03-25/themable_forms.8.x-1.0.rector.patch"
+		},
+		"drupal/field_css": {
+			"Setting the field type category as a translatable label in annotation is deprecated": "https://www.drupal.org/files/issues/2025-07-14/fix-field-definition-3535770.patch"
 		}
 	}
 }
