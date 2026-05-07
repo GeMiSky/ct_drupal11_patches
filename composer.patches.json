@@ -11,6 +11,6 @@
         },
 		 "drupal/warmer_view_mode": {
         	"D11 Compatibility": "https://www.drupal.org/files/issues/2024-08-05/warmer_view_mode.1.0.x-dev.rector.patch"
-        },
+        }
 	}
 }
