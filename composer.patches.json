@@ -8,6 +8,9 @@
 		},
 		 "drupal/audiofield": {
             "D11 Compatibility": "https://raw.githubusercontent.com/GeMiSky/ct_drupal11_patches/refs/heads/main/audiofield_drupal11_compatibility.patch"
-        }
+        },
+		 "drupal/warmer_view_mode": {
+        	"D11 Compatibility": "https://www.drupal.org/files/issues/2024-08-05/warmer_view_mode.1.0.x-dev.rector.patch"
+        },
 	}
 }
