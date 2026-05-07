@@ -1,0 +1,164 @@
+--- a/audiofield.info.yml	2023-04-10 18:14:08.000000000 +0200
++++ b/audiofield.info.yml	2026-05-07 14:48:43.268202749 +0200
+@@ -2,8 +2,7 @@
+ description: "Adds audio widget for uploading and playing audio files."
+ type: module
+ package: Field types
+-core: '8.x'
+-core_version_requirement: ^8 || ^9 || ^10
++core_version_requirement: ^10 || ^11
+ 
+ # Information added by Drupal.org packaging script on 2023-04-10
+ version: '8.x-1.13'
+--- a/src/AudioFieldPluginBase.php	2023-01-18 16:29:25.000000000 +0100
++++ b/src/AudioFieldPluginBase.php	2026-05-07 14:48:45.242188223 +0200
+@@ -10,7 +10,7 @@
+ use Drupal\Component\Utility\UrlHelper;
+ use Drupal\Component\Utility\Random;
+ use Drupal\Component\Plugin\PluginBase;
+-use Drupal\Core\Asset\LibraryDiscovery;
++use Drupal\Core\Asset\LibraryDiscoveryInterface;
+ use Symfony\Component\DependencyInjection\ContainerInterface;
+ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+ use Drupal\Core\Messenger\MessengerInterface;
+@@ -30,7 +30,7 @@
+   /**
+    * Library discovery service.
+    *
+-   * @var Drupal\Core\Asset\LibraryDiscovery
++   * @var Drupal\Core\Asset\LibraryDiscoveryInterface
+    */
+   protected $libraryDiscovery;
+ 
+@@ -65,7 +65,7 @@
+   /**
+    * {@inheritdoc}
+    */
+-  public function __construct(array $configuration, $plugin_id, $plugin_definition, LibraryDiscovery $library_discovery, MessengerInterface $messenger, LoggerChannelFactoryInterface $logger_factory, FileSystemInterface $file_system, FileUrlGenerator $file_url_generator) {
++  public function __construct(array $configuration, $plugin_id, $plugin_definition, LibraryDiscoveryInterface $library_discovery, MessengerInterface $messenger, LoggerChannelFactoryInterface $logger_factory, FileSystemInterface $file_system, FileUrlGenerator $file_url_generator) {
+     parent::__construct($configuration, $plugin_id, $plugin_definition);
+ 
+     $this->libraryDiscovery = $library_discovery;
+@@ -277,12 +277,14 @@
+    */
+   private function validateFileAgainstPlayer(FileInterface $file) {
+     // Validate the file extension agains the list of valid extensions.
+-    $errors = file_validate_extensions($file, implode(' ', $this->pluginDefinition["fileTypes"]));
+-    if (count($errors) > 0) {
++    $valid_extensions =  $this->pluginDefinition["fileTypes"];
++    // Get the file's extension.
++    $file_extension = pathinfo($file->getFilename(), PATHINFO_EXTENSION);
++    if (!in_array($file_extension, $valid_extensions)) {
+       $message_data = [
+         '%filename' => $file->getFilename(),
+         '@player' => $this->getPluginLibraryName(),
+-        '%extensions' => implode(', ', $this->pluginDefinition["fileTypes"]),
++        '%extensions' => implode(', ', $valid_extensions),
+       ];
+       $this->loggerFactory->get('audiofield')->error('Error playing file %filename: currently selected audio player only supports the following extensions: %extensions', $message_data);
+       $this->messenger->addWarning($this->t('Error playing file %filename: currently selected audio player only supports the following extensions: %extensions', $message_data));
+--- a/src/Commands/AudiofieldCommands.php	2023-01-18 16:29:25.000000000 +0100
++++ b/src/Commands/AudiofieldCommands.php	2026-05-07 14:48:46.409179636 +0200
+@@ -4,10 +4,11 @@
+ 
+ use Drush\Commands\DrushCommands;
+ use Drush\Drush;
+-use Drupal\Core\File\FileSystem;
++use Drupal\Core\File\FileExists;
+ use Drupal\Core\File\FileSystemInterface;
+ use Drupal\audiofield\AudioFieldPlayerManager;
+ use Drupal\Core\Archiver\ArchiverManager;
++use Drupal\file\FileRepositoryInterface;
+ 
+ /**
+  * A Drush commandfile for Audiofield module.
+@@ -24,7 +25,7 @@
+   /**
+    * File system service.
+    *
+-   * @var Drupal\Component\FileSystem\FileSystemInterface
++   * @var Drupal\Core\File\FileSystemInterface;
+    */
+   protected $fileSystem;
+ 
+@@ -36,14 +37,22 @@
+   protected $archiverManager;
+ 
+   /**
++   * The file repository service.
++   *
++   * @var \Drupal\file\FileRepositoryInterface
++   */
++  protected $fileRepository;
++
++  /**
+    * {@inheritdoc}
+    */
+-  public function __construct(AudioFieldPlayerManager $player_manager, FileSystemInterface $file_system, ArchiverManager $archiver_manager) {
++  public function __construct(AudioFieldPlayerManager $player_manager, FileSystemInterface $file_system, ArchiverManager $archiver_manager, FileRepositoryInterface $file_repository) {
+     parent::__construct();
+ 
+     $this->playerManager = $player_manager;
+     $this->fileSystem = $file_system;
+     $this->archiverManager = $archiver_manager;
++    $this->fileRepository = $file_repository;
+   }
+ 
+   /**
+@@ -104,8 +113,13 @@
+ 
+       // Download the file.
+       $destination = $this->fileSystem->tempnam($this->fileSystem->getTempDirectory(), 'file.') . "tar.gz";
+-      system_retrieve_file($pluginInstance->getPluginRemoteSource(), $destination, FALSE);
+-      if (!file_exists($destination)) {
++      $downloaded_file = $this->fileRepository->copyFromRemote(
++        $pluginInstance->getPluginRemoteSource(),
++        $destination,
++        FileSystemInterface::EXISTS_REPLACE
++      );
++
++      if (!$downloaded_file) {
+         // Remove the directory.
+         $this->fileSystem->rmdir($path);
+         $this->logger()->error(dt('Error: unable to download @library.', [
+@@ -140,9 +154,9 @@
+           'recurse' => FALSE,
+         ]);
+         foreach ($directories as $dirName) {
+-          $this->fileSystem->move($path . '/' . $dirName->filename, $this->fileSystem->getTempDirectory() . '/temp_audiofield', FileSystemInterface::EXISTS_REPLACE);
++          $this->fileSystem->move($path . '/' . $dirName->filename, $this->fileSystem->getTempDirectory() . '/temp_audiofield', FileExists::Replace);
+           $this->fileSystem->rmdir($path);
+-          $this->fileSystem->move($this->fileSystem->getTempDirectory() . '/temp_audiofield', $path, FileSystemInterface::EXISTS_REPLACE);
++          $this->fileSystem->move($this->fileSystem->getTempDirectory() . '/temp_audiofield', $path, FileExists::Replace);
+         }
+ 
+         // Projekktor source files need to be installed.
+--- a/src/Plugin/AudioPlayer/WavesurferAudioPlayer.php	2023-01-18 16:29:25.000000000 +0100
++++ b/src/Plugin/AudioPlayer/WavesurferAudioPlayer.php	2026-05-07 14:48:47.521171453 +0200
+@@ -8,7 +8,7 @@
+ use Drupal\Component\Serialization\Json;
+ use Drupal\file\Entity\File;
+ use Drupal\Core\Link;
+-use Drupal\Core\Asset\LibraryDiscovery;
++use Drupal\Core\Asset\LibraryDiscoveryInterface;
+ use Drupal\Core\Messenger\MessengerInterface;
+ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+ use Drupal\Core\File\FileSystemInterface;
+@@ -41,7 +41,7 @@
+   /**
+    * {@inheritdoc}
+    */
+-  public function __construct(array $configuration, $plugin_id, $plugin_definition, LibraryDiscovery $library_discovery, MessengerInterface $messenger, LoggerChannelFactoryInterface $logger_factory, FileSystemInterface $file_system, ModuleHandlerInterface $module_handler, FileUrlGenerator $file_url_generator) {
++  public function __construct(array $configuration, $plugin_id, $plugin_definition, LibraryDiscoveryInterface $library_discovery, MessengerInterface $messenger, LoggerChannelFactoryInterface $logger_factory, FileSystemInterface $file_system, ModuleHandlerInterface $module_handler, FileUrlGenerator $file_url_generator) {
+     parent::__construct($configuration, $plugin_id, $plugin_definition, $library_discovery, $messenger, $logger_factory, $file_system, $file_url_generator);
+ 
+     $this->moduleHandler = $module_handler;
+--- a/drush.services.yml	2023-01-18 16:29:25.000000000 +0100
++++ b/drush.services.yml	2026-05-07 14:39:03.929465873 +0200
+@@ -5,5 +5,6 @@
+       - '@plugin.manager.audiofield'
+       - '@file_system'
+       - '@plugin.manager.archiver'
++      - '@file.repository'
+     tags:
+       - { name: drush.command }
