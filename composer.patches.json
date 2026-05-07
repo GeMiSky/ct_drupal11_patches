@@ -8,6 +8,9 @@
 		},
 		"drupal/field_css": {
 			"Setting the field type category as a translatable label in annotation is deprecated": "https://www.drupal.org/files/issues/2025-07-14/fix-field-definition-3535770.patch"
-		}
+		},
+		 "drupal/audiofield": {
+            "D11 Compatibility": "https://raw.githubusercontent.com/GeMiSky/ct_drupal11_patches/refs/heads/main/audiofield_drupal11_compatibility.patch"
+        }
 	}
 }
